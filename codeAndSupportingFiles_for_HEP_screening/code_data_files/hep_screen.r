@@ -121,9 +121,9 @@ names(hep_all) <- tolower(names(hep_all))
 hep_all <- hep_all %>% 
   mutate(nest = as.character(nest), ## to allow non-numerical nest IDs
          date = mdy(date), # fix format of date field
-         stage = ifelse(is.na(stage), 0, stage), # fill in missing data
-         adults = ifelse(is.na(adults), 0, adults), 
-         chicks = ifelse(is.na(chicks), 0, chicks), 
+         stage = ifelse(is.na(stage), 9, stage), # fill in missing data
+         adults = ifelse(is.na(adults), 9, adults), 
+         chicks = ifelse(is.na(chicks), 9, chicks), 
          confidence = ifelse(is.na(confidence), 9, confidence)) %>% 
   select(species = speciescode, everything())
 
@@ -176,7 +176,9 @@ id.breaks <- hep.breaks %>%
   mutate(prev.stage = lag(stage),
          next.stage = lead(stage),
          inf.status = NA,
-         inf.status = ifelse(is.na(stage) & prev.stage > 0 & next.stage > 0, "A", inf.status))
+         inf.status = ifelse(is.na(stage) & 
+                               (prev.stage > 0 & prev.stage < 8) & 
+                               (next.stage > 0 & next.stage < 8), "A", inf.status))
 
 inf.status.only <- id.breaks %>% 
   select(species, nest, date, inf.status) %>% 
@@ -287,9 +289,12 @@ multi_spp_nests <- hep %>%
 #----------
 # determin the maximum stage each nest was observed in	
 max_stage <- hep %>% 
-	filter(status == "A") %>%
+	filter(status == "A" & stage < 8) %>%
     group_by(species, nest) %>%	
 	summarise(max_stage = max(stage)) 
+
+
+
 #----------	
 # determin the minimum stage each nest was observed in		
 min_stage <- hep %>% 
@@ -299,7 +304,7 @@ min_stage <- hep %>%
 #----------	
 # determin the minimum stage each nest was observed with chick		
 min_stage_chx <- hep %>% 
-	filter(status == "A", stage>1) %>%
+	filter(status == "A", stage > 1 & stage < 8) %>%
     group_by(species, nest) %>%	
 	summarise(min_stage_chx = min(stage)) 
 #----------
@@ -340,7 +345,7 @@ earliest_date_stage1 <- hep %>%
 earliest_date_chx <- hep %>% 
 	filter(status == "A") %>%
     group_by(species, nest) %>%
-	filter(stage>1) %>%
+	filter(stage > 1 & stage < 8) %>%
 	summarise(earliest_date_chx = min(date))	
 #----------
 # determin the stage 4 brood size of each nests (where knowable)
@@ -522,7 +527,7 @@ visits <- as.data.frame(visits)
 focal_fail_dates_wide <- as.data.frame(focal_fail_dates_wide)
 # set path for file to be written to
 #zfile <- paste("S:/Databases/HEP_site_visits/codeAndSupportingFiles_for_HEP_screening/scoring_files/", paste(seas, col, sep="/"), "_scoring.xlsx", sep="")
-zfile <- paste("codeAndSupportingFiles_for_HEP_screening/scoring_files/", paste(seas, col, sep="/"), seas, "_scoring_TEMP.xlsx", sep="")
+zfile <- paste("codeAndSupportingFiles_for_HEP_screening/scoring_files/", paste(seas, col, sep="/"), seas, "_scoring_TEST20190716.xlsx", sep="")
 
 
 
