@@ -42,9 +42,9 @@ library(daff)
 
 #-----------
 #specify which colony and season you want to work with
-col="W9th" # this needs to match the site_name field in the code_data_files/sub_sites.csv file; if the colony you're working on doesn't have a site_name yet, you can create one that makes sense (a shorter version of the colony name, with no spaces for best use as a file name); be sure to add this new site_name to the sub_sites file.
-col.code="103"
-seas="2018"
+col="Bolinas" # this needs to match the site_name field in the code_data_files/sub_sites.csv file; if the colony you're working on doesn't have a site_name yet, you can create one that makes sense (a shorter version of the colony name, with no spaces for best use as a file name); be sure to add this new site_name to the sub_sites file.
+col.code="53"
+seas="2019"
 
 
 #-----------
@@ -260,7 +260,8 @@ make_nests4screening <- function(){
 # create df with the minimum fledging age and duration of incubation for each species
   sp_stats1=data.frame(species=c('BCNH', 'SNEG', 'CAEG', 'GREG', 'GBHE', 'DCCO'),
                        min_fl=as.numeric(c('40', '34', '38', '77', '84', NA)),
-                       inc_dur=as.numeric(c('25', '22', '24', 	'28', '28', NA)))
+                       inc_dur=as.numeric(c('25', '22', '24', 	'28', '28', NA)),
+                       min_stg4=as.numeric(c('35', '32', '34', 	'49', '49', NA)))
   
 
 # make several fields that will be used for automated screening 
@@ -292,9 +293,6 @@ max_stage <- hep %>%
 	filter(status == "A" & stage < 8) %>%
     group_by(species, nest) %>%	
 	summarise(max_stage = max(stage)) 
-
-
-
 #----------	
 # determin the minimum stage each nest was observed in		
 min_stage <- hep %>% 
@@ -356,8 +354,6 @@ stg4_brood <- hep %>%
 	filter(stage == 4, confidence == 1) %>%
 	filter(date == max(date)) %>%
 	select(species, nest, stg4_brood = chicks) 
-
-
 #----------
 #determin the earliest stage a nest was observed in	
 earliest_stage=hep %>% 
@@ -365,13 +361,45 @@ earliest_stage=hep %>%
     group_by(species, nest) %>%	
 	filter(date == min(date)) %>%
 	select(species, nest, earliest_stage = stage) 
-	
+#---------
+# determine first date observed failed or fledged (first date status != A following date with status == A)
+spp.date.full.matrix <- hep %>% 
+  select(species, nest, date) %>% 
+  mutate(checked = "Y") %>% 
+  spread(date, checked) %>% 
+  replace(., is.na(.), "N")
+
+spp.date.full.matrix.long <- spp.date.full.matrix %>% 
+  gather(date, checked, -species, -nest) %>% 
+  arrange(species, nest, date) %>% 
+  mutate(date = as.Date(date))
+
+nest_checked <- hep %>% 
+  select(species, nest, date, status) %>% 
+  full_join(., spp.date.full.matrix.long) %>% 
+  arrange(species, nest, date) 
+
+fl_fa_date <- nest_checked %>% 
+  group_by(species, nest) %>% 
+  mutate(next_check = lead(date),
+         checked_next_check = lead(checked)) %>% 
+  filter(status == "A") %>% 
+  filter(date == max(date)) %>% 
+  select(species, nest, first_check_fl_fa = next_check)
+#----------	
+# determine first day stage == 4
+earliest_stg4 <- hep %>% 
+  filter(stage == 4) %>% 
+  group_by(species, nest) %>% 
+  filter(date == min(date)) %>% 
+  select(species, nest, earliest_stg4 = date)
+#----------	
 ## bind all those created objects
-nests1 <- join_all(list(spp.nests1, earliest_date_chx, earliest_stage, min_stage_chx, earliest_date_stage1, latest_date_stage1, latest_date_unguarded, max_stage, latest_date, earliest_date, stg4_brood), type = 'full')
+nests1 <- join_all(list(spp.nests1, earliest_date_chx, earliest_stage, min_stage_chx, earliest_date_stage1, latest_date_stage1, latest_date_unguarded, max_stage, latest_date, earliest_date, stg4_brood, fl_fa_date, earliest_stg4), type = 'full')
 nests <- join_all(list(nests1, multi_spp_nests), type = 'full')
 
-
-
+  
+#----------
 return(nests)
 }
 nests4screening <- make_nests4screening()
@@ -380,33 +408,18 @@ nests4screening <- make_nests4screening()
 #-----------
 # make automated screening calculations
 screened_nests <- nests4screening %>%  
-  mutate(
-	# was the nest still active on the last day of nest checks for this species?
-	active_last_day = ifelse(latest_date==spp_max_date, 1, 0),
+  mutate(active_last_day = ifelse(latest_date==spp_max_date, 1, 0), # was the nest still active on the last day of nest checks for this species?
 	#meets criteria for focal nest 
-	focal = ifelse(# nest was observed active before peak colony size
-	              earliest_date <= peak_active_date &
-	             # nest was observed before hatching
-								earliest_stage < 2 & 
-							 # nest actually reached incubation or brooding
-								max_stage > 0 & 
-								  # nest was first observed during the first 2 weeks of incubation or earlier
-									(((earliest_date <= round(earliest_date_chx - (inc_dur - 14), 0)) & min_stage_chx < 4 ) | 
-									# or the first day chicks were observed they were still being guarded
-										(earliest_date <= round(latest_date_stage1 - (inc_dur - 14),0))), 1, 0),	   
-																							   # | means or
-											   
-	# did the nest reach the minimum fledging age
-	fledged = ifelse(latest_date_unguarded-earliest_date_stage1 > min_fl, 1, 0),
+	focal = ifelse(earliest_date <= peak_active_date & # nest was observed active before peak colony size
+								earliest_stage < 2 & # nest was observed before hatching
+								max_stage > 0 & # nest actually reached incubation or brooding
+									(((earliest_date <= round(earliest_date_chx - (inc_dur - 14), 0)) & min_stage_chx < 4 ) | # nest was first observed during the first 2 weeks of incubation or earlier
+										(earliest_date <= round(latest_date_stage1 - (inc_dur - 14),0))), 1, 0),# or the first day chicks were observed they were still being guarded
+	fledged = ifelse(latest_date_unguarded-earliest_date_stage1 > min_fl, 1, 0), # did the nest reach the minimum fledging age
 	fledged = ifelse(is.na(fledged), 0, fledged),
-	
-
-	# was it a focal nest that failed?
-	focal_fail = ifelse(focal == 1 & active_last_day == 0 & fledged == 0, 1, 0),  
-
-	#count number of days short of fledging the nest was observed
-	days_short_of_fledging = ifelse(max_stage > 3 & fledged == 0,(latest_date_unguarded-earliest_date_stage1) - min_fl, "")
-  )
+	focal_fail = ifelse(focal == 1 & active_last_day == 0 & fledged == 0, 1, 0), # was it a focal nest that failed?
+	days_short_of_fledging = ifelse(max_stage > 3 & fledged == 0,(latest_date_unguarded-earliest_date_stage1) - min_fl, ""),#count number of days short of fledging the nest was observed
+	inc_start_by_stg4 = earliest_stg4 - min_stg4) # conservative date of start of incubation, assuming first day stage 4 was observed was first day nest was stage 4
 
 
 #-----------
@@ -455,17 +468,26 @@ focal_fail_dates_wide <- make_foc_fails()
 make_nest_scoring <- function(){
   # extract just the fields from 'nests' needed to export
   nests.sub <- screened_nests %>% 
-    select(species, nest, focal, focal_fail, fledged, days_short_of_fledging, active_last_day, max_stage, num_spp, stg4_brood)
+    select(species, nest, focal, focal_fail, fledged, days_short_of_fledging, active_last_day, max_stage, num_spp, stg4_brood, first_check_fl_fa, inc_start_by_stg4)
   
 hep.wide <- hep %>% 
   arrange(species, date) %>% 
   select(date, species, nest, ad.stg.chx.conf) %>%
   unique() %>% 
   spread(date, ad.stg.chx.conf)
-names(hep.wide) <- gsub(paste(seas, "-", sep = ""),"",names(hep.wide))
+names(hep.wide) <- gsub(paste(seas, "-", sep = ""),"",names(hep.wide)) # remove year from fields so they fit better with only month-day
 
-hep.wide1=full_join(hep.wide, nests.sub)
-return(hep.wide1)
+hep.wide1=full_join(hep.wide, nests.sub) %>% 
+  mutate(use_for_count = ifelse(focal_fail > 0 | fledged > 0 | max_stage > 0, 1, 0),
+         first_check_fl_fa = gsub(paste(seas, "-", sep = ""),"", first_check_fl_fa),
+         inc_start_by_stg4 = gsub(paste(seas, "-", sep = ""),"", inc_start_by_stg4))
+
+  hep.wide1.left <- hep.wide1[, 1:(ncol(hep.wide1)-11)]
+  hep.wide1.right <- hep.wide1[, (ncol(hep.wide1)-10):ncol(hep.wide1)] %>% 
+    select(focal, focal_fail, fledged, use_for_count, stg4_brood, everything())
+  hep.wide2 <- cbind(hep.wide1.left, hep.wide1.right)
+
+return(hep.wide2)
 }
 hep.wide1 <- make_nest_scoring()
 
@@ -527,12 +549,42 @@ visits <- as.data.frame(visits)
 focal_fail_dates_wide <- as.data.frame(focal_fail_dates_wide)
 # set path for file to be written to
 #zfile <- paste("S:/Databases/HEP_site_visits/codeAndSupportingFiles_for_HEP_screening/scoring_files/", paste(seas, col, sep="/"), "_scoring.xlsx", sep="")
-zfile <- paste("codeAndSupportingFiles_for_HEP_screening/scoring_files/", paste(seas, col, sep="/"), seas, "_scoring_TEST20190716.xlsx", sep="")
+zfile <- paste("codeAndSupportingFiles_for_HEP_screening/scoring_files/", paste(seas, col, sep="/"), seas, "_scoring.xlsx", sep="")
 
 
 
 ### load these funtions to write the scoring file with the base sheets (export.hep()) and then the appender functions
 ## the functions are actually called (executed) below
+export.1.spp = function(zspp){
+  #zspp = "GREG"
+  hep.wide1spp <- hep.wide1 %>% 
+    filter(species == zspp)
+  hep.wide1spp2 <- hep.wide1spp[, 3:(ncol(hep.wide1spp)-11)]
+  hep.wide1spp2noempty <- hep.wide1spp2[, colSums(hep.wide1spp2 != "") != 0]
+  hep.wide1spp3 <- cbind(hep.wide1spp[,1:2], 
+                         hep.wide1spp2noempty,
+                         hep.wide1spp[, (ncol(hep.wide1spp)-10):ncol(hep.wide1spp)])
+  
+  write.xlsx(hep.wide1spp3, file=zfile, sheetName= zspp, append=TRUE, row.names=FALSE)
+  }
+#---
+export.multi.spp=function(){ 
+    hep.wide1mspp <- hep.wide1 %>% 
+      filter(num_spp > 1) %>% 
+      select(everything(), -first_check_fl_fa, inc_start_by_stg4, use_for_count) %>% 
+      arrange(nest, species)
+  write.xlsx(hep.wide1mspp, file=zfile, sheetName="multiSpp", append=TRUE, row.names=FALSE)
+  }
+##------
+export.1.spp("BCNH")
+export.1.spp("SNEG")
+export.1.spp("GREG")
+export.1.spp("GBHE")
+export.1.spp("CAEG")
+export.1.spp("DCCO")
+export.multi.spp()
+
+##############################################
 export.peak_active=function(){
 write.xlsx(peak_active, file=zfile, sheetName="peak_active", append=TRUE, row.names=FALSE)
 }
@@ -550,22 +602,7 @@ export.all.spp=function(){
   write.xlsx(hep.wide1, file=zfile, sheetName="nests", append=TRUE, row.names=FALSE)
   }
 #---
-export.1.spp = function(zspp){
-  #zspp = "GREG"
-  hep.wide1spp <- hep.wide1 %>% 
-    filter(species == zspp)
-  hep.wide1spp2 <- hep.wide1spp[, 3:(ncol(hep.wide1spp)-8)]
-  hep.wide1spp2noempty <- hep.wide1spp2[, colSums(hep.wide1spp2 != "") != 0]
-  hep.wide1spp3 <- cbind(hep.wide1spp[,1:2], 
-                         hep.wide1spp2noempty,
-                         hep.wide1spp[, (ncol(hep.wide1spp)-7):ncol(hep.wide1spp)])
-  
-  write.xlsx(hep.wide1spp3, file=zfile, sheetName= zspp, append=TRUE, row.names=FALSE)
-  }
-#---
-export.multi.spp=function(){ 
-  write.xlsx(hep.wide1[hep.wide1$num_spp>1,], file=zfile, sheetName="multiSpp", append=TRUE, row.names=FALSE)
-  }
+
 export.focfail=function(){
   write.xlsx(focal_fail_dates_wide, file=zfile, sheetName="focal_fail_dates", append=TRUE, row.names=FALSE)
 }
@@ -581,13 +618,6 @@ export.stg4()
 export.nest_num_stage()
 export.num_active()
 ## and append the desired nest sheets to it
-export.1.spp("BCNH")
-export.1.spp("SNEG")
-export.1.spp("GREG")
-export.1.spp("GBHE")
-export.1.spp("CAEG")
-export.1.spp("DCCO")
-export.multi.spp()
 export.focfail()
 export.visits()
 
