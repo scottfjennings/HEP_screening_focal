@@ -574,8 +574,16 @@ export.multi.spp=function(){
       select(everything(), -first_check_fl_fa, inc_start_by_stg4, use_for_count) %>% 
       arrange(nest, species)
   write.xlsx(hep.wide1mspp, file=zfile, sheetName="multiSpp", append=TRUE, row.names=FALSE)
+}
+#---
+export.screen.log=function(){ 
+    screen.log <- data.frame(screen.date = "",
+                             screen.initials = "",
+                             screen.notes = "")
+  write.xlsx(screen.log, file=zfile, sheetName="screen_log", append=TRUE, row.names=FALSE)
   }
 ##------
+export.screen.log()
 export.1.spp("BCNH")
 export.1.spp("SNEG")
 export.1.spp("GREG")
