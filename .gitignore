@@ -1,0 +1,13 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+.HEP_site_visit_data.accdb
+.nonAccess_data/
+.codeAndSupportingFiles_for_HEP_screening/queried_from_access/
+.codeAndSupportingFiles_for_HEP_screening/scoring_files/
+.codeAndSupportingFiles_for_HEP_screening/automated screening readme.docx
+.codeAndSupportingFiles_for_HEP_screening/2015HEP to redo.xlsx
+.SheetsGeneratedByHep_Screen2018_SJ.xlsx
+.codeAndSupportingFiles_for_HEP_screening/code_data_files/HEPscreen2HEP_fieldnames.xlsx
+.codeAndSupportingFiles_for_HEP_screening/code_data_files/sub_sites.xlsx
