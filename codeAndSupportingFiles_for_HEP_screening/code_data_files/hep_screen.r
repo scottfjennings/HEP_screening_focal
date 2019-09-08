@@ -36,18 +36,18 @@ library(lubridate)
 library(xlsx)
 library(readxl)
 library(hms)
-
+code_version = 1.5
 
 # 2 define colony, year -----------
 #specify which colony and season you want to work with
 # requires - nothing
-col = "BodegaBayFlat1" # used by 16, 20
+col = "Alcatraz" # used by 16, 20
 # col needs to match the site_name field in the code_data_files/sub_sites.csv file; if the colony you're working on doesn't have a site_name yet, you can create one that makes sense (a shorter version of the colony name, with no spaces for best use as a file name); be sure to add this new site_name to the sub_sites file.
-col.code = "5" # used by 3.2, 4.2
-seas = "2019" # used by 3.2, 4.2, 5, 7, 12, 16, 20
+col.code = "70" # used by 3.2, 4.2
+seas = "2018" # used by 3.2, 4.2, 5, 7, 12, 16, 20
 
 
-# 3 import visits -----------
+# 3 import visits !! skip for Alcatraz !! -----------
 ####  STARTING WITH THE VISITS DATA
 hep_visits <- read_xlsx("codeAndSupportingFiles_for_HEP_screening/queried_from_access/HEP_visits Query.xlsx", "HEP_visits_Query") # used by 3.1, 3.2
 #hep_visits <- read_csv("HEP_screening/queried_from_access/HEP_visits Query.csv")
@@ -73,14 +73,14 @@ hep_visits <- hep_visits %>%
 
 #hep_visits <- bind_rows(hep_visits, csv_visits)
 # used by 3.1
-# 3.1 colony + year filter for visits ----------------------
+# 3.1 colony + year filter for visits !! skip for Alcatraz !! ----------------------
 # filter to colony and year
 # uses hep_visits from 3
 hep_visits_sub <- hep_visits %>% 
   filter(code == col.code, year(date) == seas) %>%
   droplevels()
 # used by 3.2, 3.3
-# 3.2 make_visits -------------
+# 3.2 make_visits !! skip for Alcatraz !! -------------
 # uses hep_visits.sub from 3.2
 make_visits <- function(){
 hep_visits_sub <- hep_visits_sub %>% 
@@ -103,7 +103,7 @@ return(visits)
 }
 visits <- make_visits()
 # used by 16, 19, 20
-# 3.3 counted_active ------------
+# 3.3 counted_active !! skip for Alcatraz !! ------------
 # extract the number of active nests counted in the field
 # uses hep_visits_sub from 3.2
 counted_active <- hep_visits_sub %>% 
@@ -112,7 +112,13 @@ counted_active <- hep_visits_sub %>%
 # 4 import site_visit data -----------
 ##importing from hep_raw access database and prelim data managment
 ## (in access, run HEP_individual nests Query, export to xls, then save as csv)
-hep_all <- read.csv("codeAndSupportingFiles_for_HEP_screening/queried_from_access/HEP_individual nests Query.csv") 
+hep_all_foo <- read.csv("codeAndSupportingFiles_for_HEP_screening/queried_from_access/HEP_individual nests Query.csv") 
+hep_all=read.csv("alcatraz_hep/Alcatraz_ready4screening/alcatraz2018_4screening20190908.csv") %>% 
+  rename(SpeciesCode = spp) %>% 
+  mutate(code = col.code,
+         date = ymd(as.character(date)),
+         date = paste(month(date), day(date), year(date), sep = "/"))
+
 names(hep_all) <- tolower(names(hep_all))
 ## data management
 # options for 2015 and 2016 data
@@ -144,6 +150,22 @@ hep <- hep_all %>%
   droplevels() %>% 
   arrange(species, nest, date)
 # used in 4.2, 4.3, 4.4, 5, 6, 9.2, 9.4, 9.6-9.19, 11, 12, 15 
+
+nest_viewer <- function(zspp, znest, znest.exact = FALSE) {
+  if(znest.exact == FALSE) {
+  hep %>% 
+    filter(species == zspp & grepl(znest, nest)) %>% 
+    arrange(date) %>% 
+      select(species, nest, md, everything(), -code, -inf.status, -jdate, -date, -ad.stg.chx.conf)
+  } else {
+      hep %>% 
+    filter(species == zspp, nest == znest) %>% 
+    arrange(date) %>% 
+      select(species, nest, md, everything(), -code, -inf.status, -jdate, -date, -ad.stg.chx.conf)
+  }
+}
+
+nest_viewer("BCNH", "119")
 # 4.2 generate inferred status ---------------
 ## these 2 together fill in days where a nest was missed but other nests for that species were checked
 # uses hep from 4.1
@@ -204,7 +226,7 @@ hep <- hep_inf_status %>%
 hep <- hep %>% 
   arrange(species, nest, date)
 # used in 5, 6, 9.2, 9.4, 9.6-9.19, 11, 12, 15
-# 5 nest_num_stage -----------
+# 5 nest_num_stage !!!NO RUN!!! -----------
 ## for each visit, make table with the number of nests in each stage
 ## gets written to final xls
 # uses hep from 4.4
@@ -220,13 +242,20 @@ nest_num_stage[is.na(nest_num_stage)] <- "-"
 # 6 nests_per_day -----------
 ## count how many nests were present for each species on each day
 ## num.active is whichever is greatest between # active nests recorded on front of sheet and number of nests from back of sheet
-nests_per_day <- hep %>% 
+if(col == "Alcatraz") {
+  nests_per_day <- hep %>% 
+  filter((status == "A" | inf.status == "A") & inf.status != "P") %>%
+  group_by(species, date) %>%	
+  summarise(num.active = length(nest)) 
+} else {
+  nests_per_day <- hep %>% 
   filter((status == "A" | inf.status == "A") & inf.status != "P") %>%
   group_by(species, date) %>%	
   summarise(calc.active = length(nest)) %>% 
   full_join(., counted_active) %>% 
   mutate(num.active = ifelse(calc.active > counted.active, calc.active, counted.active)) 
-# 7 num_active_wide -------------
+}
+# 7 num_active_wide !!!NO RUN!!! -------------
 ## make wide version of the number of nests of all status for each species on each visit	
 ## gets written to final xls
 num_active_wide <- nests_per_day %>% 
@@ -238,6 +267,7 @@ num_active_wide[is.na(num_active_wide)] <- "-"
 # 8 peak_active -----------
 ## determine the date with the peak number of active nests, and PEAKACTVNSTS
 ## gets written to final xls
+## also used in 9
 peak_active <- nests_per_day %>% 
   group_by(species) %>%
   mutate(num.active = replace_na(num.active, 0)) %>% 
@@ -399,7 +429,7 @@ earliest_stg4 <- hep %>%
   select(species, nest, earliest.stg4 = date)
 # 9.20 latest_date_chicks --------------
 latest_date_chicks <- hep %>% 
-  filter(chicks > 0) %>% 
+  filter(chicks > 0 & chicks < 9) %>% 
   group_by(species, nest) %>% 
   filter(date == max(date)) %>% 
   select(species, nest, latest.date.chicks = date)
@@ -407,8 +437,6 @@ latest_date_chicks <- hep %>%
 ## bind all those created objects
 nests1 <- join_all(list(spp_nests1, earliest_date_chx, earliest_stage, min_stage_chx, earliest_date_stage1, latest_date_stage1, latest_date_unguarded, max_stage, latest_date, earliest_date, stg4_brood, fl_fa_date, earliest_stg4, latest_date_chicks), type = 'full')
 nests <- join_all(list(nests1, multi_spp_nests), type = 'full')
-
-  
 #end of make_nests4screening ----------
 return(nests)
 }
@@ -434,7 +462,7 @@ screened_nests <- nests4screening %>%
 	hatch.by.stg4 = earliest.stg4 - (min.stg4 - inc.dur)) # estimate of hatch date based on first observation of stage 4; assumes earliest.stg4 is first day unguarded, so this is likely later than true hatch date
 
 
-# 11 make_foc_fails ----------- 
+# 11 make_foc_fails !!!NO RUN!!! ----------- 
 # count focal fails detected on each visit
 make_foc_fails <- function(){
 # first determin which dates each species was surveyed
@@ -504,7 +532,7 @@ hep.wide1=full_join(hep.wide, nests.sub) %>%
 hep.wide1 <- make_nest_scoring()
 
 
-# 13 stg4_wide -----------
+# 13 stg4_wide !!!NO RUN!!! -----------
 # Number of stage 4 nests of each brood size
 ## gets written to final xls
 stg4_wide = hep.wide1 %>%
@@ -591,9 +619,9 @@ export.multi.spp=function(){
 }
 #---
 export.screen.log=function(){ 
-    screen.log <- data.frame(screen.date = "",
+    screen.log <- data.frame(screen.date = as.Date(Sys.time()),
                              screen.initials = "",
-                             screen.notes = "")
+                             screen.notes = paste("file created by hep_screen version", code_version, sep = " "))
   write.xlsx(screen.log, file=zfile, sheetName="screen_log", append=TRUE, row.names=FALSE)
 }
 
