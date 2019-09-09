@@ -150,22 +150,6 @@ hep <- hep_all %>%
   droplevels() %>% 
   arrange(species, nest, date)
 # used in 4.2, 4.3, 4.4, 5, 6, 9.2, 9.4, 9.6-9.19, 11, 12, 15 
-
-nest_viewer <- function(zspp, znest, znest.exact = FALSE) {
-  if(znest.exact == FALSE) {
-  hep %>% 
-    filter(species == zspp & grepl(znest, nest)) %>% 
-    arrange(date) %>% 
-      select(species, nest, md, everything(), -code, -inf.status, -jdate, -date, -ad.stg.chx.conf)
-  } else {
-      hep %>% 
-    filter(species == zspp, nest == znest) %>% 
-    arrange(date) %>% 
-      select(species, nest, md, everything(), -code, -inf.status, -jdate, -date, -ad.stg.chx.conf)
-  }
-}
-
-nest_viewer("BCNH", "119")
 # 4.2 generate inferred status ---------------
 ## these 2 together fill in days where a nest was missed but other nests for that species were checked
 # uses hep from 4.1
@@ -624,7 +608,10 @@ export.screen.log=function(){
                              screen.notes = paste("file created by hep_screen version", code_version, sep = " "))
   write.xlsx(screen.log, file=zfile, sheetName="screen_log", append=TRUE, row.names=FALSE)
 }
-
+#---
+export.peak_active=function(){
+write.xlsx(peak_active, file=zfile, sheetName="peak_active", append=TRUE, row.names=FALSE)
+}
 # 18 call export functions ------
 # call functions to export to xlsx
 export.screen.log()
@@ -635,14 +622,11 @@ export.1.spp("GBHE")
 export.1.spp("CAEG")
 export.1.spp("DCCO")
 export.multi.spp()
-
+export.peak_active()
 
 
 # 19 -----------------
 # extra functions to export derivative worksheets
-export.peak_active=function(){
-write.xlsx(peak_active, file=zfile, sheetName="peak_active", append=TRUE, row.names=FALSE)
-}
 export.stg4=function(){
   write.xlsx(stg4_wide, file=zfile, sheetName="stg4", append=TRUE, row.names=FALSE)
 }  
@@ -663,7 +647,6 @@ export.visits=function(){
 }
 ## !!!! important!! pause briefly between calling each of these functions, otherwise some 
 ## now export the base scoring file
-export.peak_active()
 export.stg4()
 export.nest_num_stage()
 export.num_active()
