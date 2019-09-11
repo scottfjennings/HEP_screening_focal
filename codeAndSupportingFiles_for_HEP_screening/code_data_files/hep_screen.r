@@ -36,16 +36,17 @@ library(lubridate)
 library(xlsx)
 library(readxl)
 library(hms)
-code_version = 1.5
+code_version = 1.5.1
 
 # 2 define colony, year -----------
 #specify which colony and season you want to work with
 # requires - nothing
-col = "Alcatraz" # used by 16, 20
+col = "Bolinas" # used by 16, 20
 # col needs to match the site_name field in the code_data_files/sub_sites.csv file; if the colony you're working on doesn't have a site_name yet, you can create one that makes sense (a shorter version of the colony name, with no spaces for best use as a file name); be sure to add this new site_name to the sub_sites file.
-col.code = "70" # used by 3.2, 4.2
-seas = "2018" # used by 3.2, 4.2, 5, 7, 12, 16, 20
-
+col.code = "53" # used by 3.2, 4.2
+seas = "2017" # used by 3.2, 4.2, 5, 7, 12, 16, 20
+# only fill this for screening Alcatraz
+alc.file = "alcatraz2017_4screening_codeV1.5_20190909"
 
 # 3 import visits !! skip for Alcatraz !! -----------
 ####  STARTING WITH THE VISITS DATA
@@ -112,12 +113,16 @@ counted_active <- hep_visits_sub %>%
 # 4 import site_visit data -----------
 ##importing from hep_raw access database and prelim data managment
 ## (in access, run HEP_individual nests Query, export to xls, then save as csv)
-hep_all_foo <- read.csv("codeAndSupportingFiles_for_HEP_screening/queried_from_access/HEP_individual nests Query.csv") 
-hep_all=read.csv("alcatraz_hep/Alcatraz_ready4screening/alcatraz2018_4screening20190908.csv") %>% 
+
+if(col == "Alcatraz") {
+  hep_all <- read.csv(paste("alcatraz_hep/Alcatraz_ready4screening/", alc.file, ".csv", sep = "")) %>% 
   rename(SpeciesCode = spp) %>% 
   mutate(code = col.code,
          date = ymd(as.character(date)),
          date = paste(month(date), day(date), year(date), sep = "/"))
+} else {
+  hep_all <- read.csv("codeAndSupportingFiles_for_HEP_screening/queried_from_access/HEP_individual nests Query.csv") 
+}
 
 names(hep_all) <- tolower(names(hep_all))
 ## data management
