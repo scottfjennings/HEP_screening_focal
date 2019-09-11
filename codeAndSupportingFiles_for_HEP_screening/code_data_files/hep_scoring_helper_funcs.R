@@ -1,9 +1,14 @@
 
 
+## a few helper functions to aid in HEP nest screening
+## if you have just run hep_screen_VX.X.R and still have the resulting objects in the environment, then you do not need to run code chunks 4 through 4.4. 
+## these are exact copies of the code in hep_screen_VX.X.R
+
+
 library(tidyverse)
 library(lubridate)
 library(hms)
-code_version = 1.0
+code_version = 1.1.0
 
 # 2 define colony, year -----------
 #specify which colony and season you want to work with
@@ -12,16 +17,22 @@ col = "Alcatraz" # used by 16, 20
 # col needs to match the site_name field in the code_data_files/sub_sites.csv file; if the colony you're working on doesn't have a site_name yet, you can create one that makes sense (a shorter version of the colony name, with no spaces for best use as a file name); be sure to add this new site_name to the sub_sites file.
 col.code = "70" # used by 3.2, 4.2
 seas = "2017" # used by 3.2, 4.2, 5, 7, 12, 16, 20
+# only fill this for screening Alcatraz
+alc.file = "alcatraz2017_4screening_codeV1.5_20190909"
 
 # 4 import site_visit data -----------
 ##importing from hep_raw access database and prelim data managment
 ## (in access, run HEP_individual nests Query, export to xls, then save as csv)
-hep_all <- read.csv("codeAndSupportingFiles_for_HEP_screening/queried_from_access/HEP_individual nests Query.csv") 
-hep_all=read.csv("alcatraz_hep/Alcatraz_ready4screening/alcatraz2016_4screening_codeV1.5_20190909.csv") %>% 
+
+if(col == "Alcatraz") {
+  hep_all <- read.csv(paste("alcatraz_hep/Alcatraz_ready4screening/", alc.file, ".csv", sep = "")) %>% 
   rename(SpeciesCode = spp) %>% 
   mutate(code = col.code,
          date = ymd(as.character(date)),
          date = paste(month(date), day(date), year(date), sep = "/"))
+} else {
+  hep_all <- read.csv("codeAndSupportingFiles_for_HEP_screening/queried_from_access/HEP_individual nests Query.csv") 
+}
 
 names(hep_all) <- tolower(names(hep_all))
 ## data management
@@ -36,7 +47,17 @@ hep_all <- hep_all %>%
          confidence = ifelse(is.na(confidence), 9, confidence)) %>% 
   select(species = speciescode, everything())
 
+## here can add in 2015 and 2016 data from csvs (single object generated with 'hep_screen_from_field_data.R' and with a copy saved at HEP_screening/code_data_files/2015_2016_nests.csv)
+## be sure to edit the file path for your computer
+#csv_nests <- read_csv("codeAndSupportingFiles_for_HEP_screening/code_data_files/2015_2016_nests.csv", col_types = cols(code = col_character())) %>% 
+#  mutate(code = as.numeric(code))
 
+#hep_all <- bind_rows(hep_all, csv_nests)
+
+## double check which years and colonies are present
+#hep_checker <- hep_all %>% 
+#  mutate(Year = year(date)) %>% 
+#  distinct(code, Year)
 # 4.1 colony + season filter for site_visit -----------
 ## filter to just the colony and season you want to work with
 hep <- hep_all %>% 
@@ -104,8 +125,6 @@ hep <- hep_inf_status %>%
 hep <- hep %>% 
   arrange(species, nest, date)
 # used in 5, 6, 9.2, 9.4, 9.6-9.19, 11, 12, 15
-
-
 #################################
 ## look at long-format check data for a single nest
 # znest.exact = TRUE returns an exact match of the nest number; FALSE returns partial string match, so e.g. if znest = 203, would return 203 and 203A
